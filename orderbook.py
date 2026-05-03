@@ -27,6 +27,8 @@ class Trade:
     aggressor: str  # "buy" or "sell"
     buy_trader: str
     sell_trader: str
+    buy_order_id: int
+    sell_order_id: int
 
 
 @dataclass
@@ -97,6 +99,8 @@ class OrderBook:
             fill = min(incoming.remaining, resting.remaining)
             buy_t = incoming.trader_id if incoming.side == "buy" else resting.trader_id
             sell_t = incoming.trader_id if incoming.side == "sell" else resting.trader_id
+            buy_oid = incoming.id if incoming.side == "buy" else resting.id
+            sell_oid = incoming.id if incoming.side == "sell" else resting.id
             t = Trade(
                 id=next(_trade_id),
                 price=level_price,
@@ -105,6 +109,8 @@ class OrderBook:
                 aggressor=incoming.side,
                 buy_trader=buy_t,
                 sell_trader=sell_t,
+                buy_order_id=buy_oid,
+                sell_order_id=sell_oid,
             )
             out.append(t)
             self.trades.append(t)

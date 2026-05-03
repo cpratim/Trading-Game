@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 
-export default function OrderEntry({ prefill, onSubmit }) {
+const SIZE_PRESETS = [1, 5, 10, 20]
+
+export default function OrderEntry({ prefill, qty, onQtyChange, onSubmit }) {
   const [side, setSide] = useState('buy')
   const [price, setPrice] = useState('')
-  const [qty, setQty] = useState(1)
 
   useEffect(() => {
     if (!prefill) return
@@ -52,11 +53,21 @@ export default function OrderEntry({ prefill, onSubmit }) {
             type="number"
             min={1}
             value={qty}
-            onChange={e => setQty(e.target.value)}
+            onChange={e => onQtyChange(Math.max(1, parseInt(e.target.value) || 1))}
             onKeyDown={handleKey}
             placeholder="1"
           />
         </div>
+      </div>
+
+      <div className="oe-presets">
+        {SIZE_PRESETS.map(s => (
+          <button
+            key={s}
+            className={`oe-preset ${qty == s ? 'active' : ''}`}
+            onClick={() => onQtyChange(s)}
+          >{s}</button>
+        ))}
       </div>
 
       <button

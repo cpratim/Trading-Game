@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels'
 import { socket } from './socket'
 import PriceChart from './components/PriceChart'
 import OrderLadder from './components/OrderLadder'
@@ -16,6 +17,7 @@ export default function App() {
   const [myOrders, setMyOrders] = useState({})
   const [position, setPosition] = useState({ qty: 0, avg_price: 0, realized: 0, unrealized: 0 })
   const [prefill, setPrefill] = useState(null)
+  const [qty, setQty] = useState(1)
 
   useEffect(() => {
     const onConnect = () => setConnected(true)
@@ -88,10 +90,11 @@ export default function App() {
     }
   }, [])
 
-  // Ladder row click pre-fills the order entry form instead of placing immediately
+  // Ladder click: place immediately with current qty, also sync the form
   const handleLadderSelect = useCallback((side, price) => {
+    socket.emit('submit_order', { side, type: 'limit', price, size: qty })
     setPrefill({ side, price })
-  }, [])
+  }, [qty])
 
   const handleOrderSubmit = useCallback(({ side, price, size }) => {
     socket.emit('submit_order', { side, type: 'limit', price, size })
@@ -100,6 +103,18 @@ export default function App() {
   const cancelOrder = useCallback((orderId) => {
     socket.emit('cancel_order', { order_id: orderId })
   }, [])
+
+  // Compute my resting orders per price level for ladder overlay
+  const myBidMap = {}
+  const myAskMap = {}
+  Object.values(myOrders).forEach(order => {
+    if ((order.status === 'open' || order.status === 'partial') && order.price != null) {
+      if (order.side === 'buy')
+        myBidMap[order.price] = (myBidMap[order.price] || 0) + order.remaining
+      else
+        myAskMap[order.price] = (myAskMap[order.price] || 0) + order.remaining
+    }
+  })
 
   const pnl = position.realized + position.unrealized
 
@@ -128,19 +143,30 @@ export default function App() {
         </div>
       </header>
 
-      <div className="main">
-        <div className="chart-panel">
-          <PriceChart trades={trades} />
-        </div>
-        <div className="ladder-panel">
-          <OrderEntry prefill={prefill} onSubmit={handleOrderSubmit} />
-          <OrderLadder book={book} onSelect={handleLadderSelect} />
-        </div>
-      </div>
-
-      <div className="orders-panel">
-        <MyOrders orders={myOrders} onCancel={cancelOrder} />
-      </div>
+      <PanelGroup direction="horizontal" className="main-group">
+        <Panel defaultSize={75} minSize={40}>
+          <PanelGroup direction="vertical">
+            <Panel defaultSize={65} minSize={25}>
+              <div className="chart-panel">
+                <PriceChart trades={trades} />
+              </div>
+            </Panel>
+            <PanelResizeHandle className="resize-handle-h" />
+            <Panel defaultSize={35} minSize={15}>
+              <div className="orders-panel">
+                <MyOrders orders={myOrders} onCancel={cancelOrder} />
+              </div>
+            </Panel>
+          </PanelGroup>
+        </Panel>
+        <PanelResizeHandle className="resize-handle-v" />
+        <Panel defaultSize={25} minSize={18}>
+          <div className="ladder-panel">
+            <OrderEntry prefill={prefill} qty={qty} onQtyChange={setQty} onSubmit={handleOrderSubmit} />
+            <OrderLadder book={book} myBidMap={myBidMap} myAskMap={myAskMap} onSelect={handleLadderSelect} />
+          </div>
+        </Panel>
+      </PanelGroup>
     </div>
   )
 }

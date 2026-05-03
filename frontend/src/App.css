@@ -17,35 +17,56 @@ body {
   height: 100vh;
 }
 
-.main {
-  display: flex;
+.main-group {
   flex: 1;
   min-height: 0;
-  background: #0b0b18;
 }
 
 .chart-panel {
-  flex: 2;
+  height: 100%;
   background: #0b0b18;
   padding: 12px 14px 8px;
   min-width: 0;
-  border-right: 1px solid #ffffff22;
+  overflow: hidden;
 }
 
 .ladder-panel {
-  flex: 0 0 260px;
+  height: 100%;
   background: #0b0b18;
   padding: 12px 10px 8px;
   overflow-y: auto;
 }
 
 .orders-panel {
-  flex-shrink: 0;
+  height: 100%;
   background: #0b0b18;
-  border-top: 1px solid #ffffff33;
   padding: 8px 16px 10px;
-  max-height: 210px;
   overflow-y: auto;
+}
+
+/* ── Resize handles ───────────────────────────────────────── */
+
+.resize-handle-v {
+  width: 4px;
+  background: #ffffff11;
+  cursor: col-resize;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.resize-handle-h {
+  height: 4px;
+  background: #ffffff11;
+  cursor: row-resize;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.resize-handle-v:hover,
+.resize-handle-v[data-resize-handle-active],
+.resize-handle-h:hover,
+.resize-handle-h[data-resize-handle-active] {
+  background: #ffffff55;
 }
 
 /* ── Header ───────────────────────────────────────────────── */
@@ -177,6 +198,26 @@ body {
 .oe-field input:focus { outline: none; border-color: #ffffff99; }
 .oe-field input::placeholder { color: #444455; }
 
+.oe-presets {
+  display: flex;
+  gap: 4px;
+}
+
+.oe-preset {
+  flex: 1;
+  padding: 3px 0;
+  border-radius: 3px;
+  border: 1px solid #ffffff22;
+  background: transparent;
+  color: #888899;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.oe-preset:hover { border-color: #ffffff55; color: #ffffff; }
+.oe-preset.active { border-color: #ffffff66; color: #ffffff; background: #ffffff11; }
+
 .oe-submit {
   width: 100%;
   padding: 6px 0;
@@ -230,7 +271,34 @@ body {
 .l-price       { font-weight: bold; color: #ffffff; }
 .l-price.ask   { color: #ff6b6b; }
 .l-price.bid   { color: #4ade80; }
-.l-size        { color: #aaaacc; }
+.l-qty         { color: #aaaacc; cursor: pointer; }
+.l-bid         { text-align: right; }
+.l-ask         { text-align: left; }
+.l-bid:hover   { color: #4ade80; }
+.l-ask:hover   { color: #ff6b6b; }
+
+.th-ask-mkt { text-align: right; color: #ff6b6b66; }
+.th-bid-mkt { text-align: left;  color: #4ade8066; }
+
+.thead-sub th {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  padding-top: 0;
+  padding-bottom: 4px;
+  opacity: 0.5;
+}
+
+.l-mkt-ask { text-align: right; color: #ff6b6b99; cursor: pointer; }
+.l-mkt-bid { text-align: left;  color: #4ade8099; cursor: pointer; }
+.l-mine     { text-align: center; cursor: pointer; }
+
+.my-qty {
+  font-weight: bold;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+.my-qty.bid { color: #4ade80; border: 1px solid #4ade8066; }
+.my-qty.ask { color: #ff6b6b; border: 1px solid #ff6b6b66; }
 
 .spread-row td {
   text-align: center;

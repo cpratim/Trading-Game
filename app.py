@@ -26,7 +26,7 @@ from flask import Flask, request
 from flask_socketio import SocketIO, emit
 
 from orderbook import OrderBook, Position
-from market_maker import MarketMaker
+from mm import MarketMaker
 
 # --- config ---------------------------------------------------------------
 MM_TRADER_ID = "__mm__"
@@ -227,8 +227,8 @@ def main():
         refresh_interval=MM_REFRESH_S,
     )
     mm.start()
-    print("Trading game backend listening on http://0.0.0.0:5000")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False,
+    print("Trading game backend listening on http://0.0.0.0:5002")
+    socketio.run(app, host="0.0.0.0", port=5002, debug=False,
                  allow_unsafe_werkzeug=True)
 
 

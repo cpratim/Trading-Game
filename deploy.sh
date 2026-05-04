@@ -10,24 +10,15 @@ done
 BACKEND_PORT=${POSITIONAL[0]:-5002}
 FRONTEND_PORT=${POSITIONAL[1]:-5173}
 
-OFFSET=$(( BACKEND_PORT - 5000 ))
-NGROK_B_API=$(( 4040 + OFFSET * 2 ))
-NGROK_F_API=$(( 4041 + OFFSET * 2 ))
-
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PIDS_FILE="/tmp/trading_pids_${BACKEND_PORT}"
 
+# Parse the tunnel URL from ngrok's JSON log output
 get_ngrok_url() {
-  local api=$1
-  for i in $(seq 1 15); do
+  local logfile=$1
+  for i in $(seq 1 20); do
     local url
-    url=$(curl -s "http://localhost:${api}/api/tunnels" 2>/dev/null \
-      | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-hits = [t['public_url'] for t in d.get('tunnels', []) if t['proto'] == 'https']
-print(hits[0] if hits else '')
-" 2>/dev/null || true)
+    url=$(grep -o '"url":"https://[^"]*"' "$logfile" 2>/dev/null | head -1 | sed 's/"url":"//;s/"//')
     if [ -n "$url" ]; then echo "$url"; return 0; fi
     sleep 1
   done
@@ -63,12 +54,12 @@ if [ "$SERVE" = "1" ]; then
   # 3. Ngrok
   echo "[3/3] Tunnelling..."
   ngrok http "$BACKEND_PORT" \
-    --web-addr "localhost:$NGROK_B_API" \
+    --log stdout --log-format json \
     >> "/tmp/trading_ngrok_b_${BACKEND_PORT}.log" 2>&1 &
   NGROK_B_PID=$!
   sleep 3
 
-  URL=$(get_ngrok_url "$NGROK_B_API")
+  URL=$(get_ngrok_url "/tmp/trading_ngrok_b_${BACKEND_PORT}.log")
   if [ -z "$URL" ]; then
     echo "ERROR: could not get ngrok URL. Check /tmp/trading_ngrok_b_${BACKEND_PORT}.log"
     kill "$BACKEND_PID" "$NGROK_B_PID" 2>/dev/null || true
@@ -101,12 +92,12 @@ sleep 2
 # 2. Ngrok backend
 echo "[2/5] Tunnelling backend..."
 ngrok http "$BACKEND_PORT" \
-  --web-addr "localhost:$NGROK_B_API" \
+  --log stdout --log-format json \
   >> "/tmp/trading_ngrok_b_${BACKEND_PORT}.log" 2>&1 &
 NGROK_B_PID=$!
 sleep 3
 
-BACKEND_URL=$(get_ngrok_url "$NGROK_B_API")
+BACKEND_URL=$(get_ngrok_url "/tmp/trading_ngrok_b_${BACKEND_PORT}.log")
 if [ -z "$BACKEND_URL" ]; then
   echo "ERROR: could not get backend ngrok URL. Check /tmp/trading_ngrok_b_${BACKEND_PORT}.log"
   kill "$BACKEND_PID" "$NGROK_B_PID" 2>/dev/null || true
@@ -125,12 +116,12 @@ sleep 4
 # 4. Ngrok frontend
 echo "[4/5] Tunnelling frontend..."
 ngrok http "$FRONTEND_PORT" \
-  --web-addr "localhost:$NGROK_F_API" \
+  --log stdout --log-format json \
   >> "/tmp/trading_ngrok_f_${FRONTEND_PORT}.log" 2>&1 &
 NGROK_F_PID=$!
 sleep 3
 
-FRONTEND_URL=$(get_ngrok_url "$NGROK_F_API")
+FRONTEND_URL=$(get_ngrok_url "/tmp/trading_ngrok_f_${FRONTEND_PORT}.log")
 if [ -z "$FRONTEND_URL" ]; then
   echo "ERROR: could not get frontend ngrok URL. Check /tmp/trading_ngrok_f_${FRONTEND_PORT}.log"
   kill "$BACKEND_PID" "$NGROK_B_PID" "$FRONTEND_PID" "$NGROK_F_PID" 2>/dev/null || true

@@ -1,7 +1,7 @@
 """Trading game backend - Flask + SocketIO.
 
 Run:    pip install -r requirements.txt && python app.py
-Port:   5000
+Port:   5002
 
 Inbound events:
   submit_order    {side: "buy"|"sell", type: "limit"|"market", price?: float, size: int}
@@ -9,6 +9,8 @@ Inbound events:
 
 Outbound events:
   hello           {trader_id, name}                                   (private, on connect)
+  open_orders     [{order_id, side, price, size, remaining, filled,
+                    status, type}]                                     (private, on reconnect)
   book            {bids: [[p,sz], ...], asks: [[p,sz], ...]}          (broadcast)
   trade           {price, size, ts, aggressor}                        (broadcast tape)
   trades_history  [{price, size, ts}, ...]                            (private, on connect)
@@ -43,7 +45,9 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 book = OrderBook()
 positions: dict[str, Position] = {MM_TRADER_ID: Position()}
-names: dict[str, str] = {}  # sid -> display name (only humans)
+names: dict[str, str] = {}          # trader_id -> display name
+sid_to_trader: dict[str, str] = {}  # socket sid -> persistent trader_id
+trader_to_sid: dict[str, str] = {}  # persistent trader_id -> current socket sid
 lock = threading.Lock()
 
 
@@ -63,8 +67,11 @@ def emit_trade(t):
     })
 
 
-def emit_position(sid: str):
-    pos = positions.get(sid, Position())
+def emit_position(trader_id: str):
+    sid = trader_to_sid.get(trader_id)
+    if not sid:
+        return
+    pos = positions.get(trader_id, Position())
     socketio.emit("position", {
         "qty": pos.qty,
         "avg_price": round(pos.avg_price, 4),
@@ -74,8 +81,8 @@ def emit_position(sid: str):
 
 
 def emit_all_positions():
-    for sid in list(names.keys()):
-        emit_position(sid)
+    for trader_id in list(names.keys()):
+        emit_position(trader_id)
 
 
 def apply_trades(trades):
@@ -89,28 +96,55 @@ def apply_trades(trades):
 @socketio.on("connect")
 def on_connect():
     sid = request.sid
-    names[sid] = f"trader_{sid[:6]}"
-    positions.setdefault(sid, Position())
-    emit("hello", {"trader_id": sid, "name": names[sid]})
+    trader_id = request.args.get("trader_id") or sid
+
+    sid_to_trader[sid] = trader_id
+    trader_to_sid[trader_id] = sid
+    names[trader_id] = f"trader_{trader_id[:6]}"
+    positions.setdefault(trader_id, Position())
+
+    emit("hello", {"trader_id": trader_id, "name": names[trader_id]})
     emit("book", book.snapshot(depth=LEVELS))
     emit("trades_history", [
         {"price": t.price, "size": t.size, "ts": t.ts}
         for t in book.trades[-100:]
     ])
-    emit_position(sid)
-    print(f"[connect] {names[sid]} ({sid})")
+    emit_position(trader_id)
+
+    # Restore any resting orders that survived the reconnect
+    open_orders = [
+        {
+            "order_id": o.id,
+            "side": o.side,
+            "type": "limit",
+            "price": o.price,
+            "size": o.size,
+            "remaining": o.remaining,
+            "filled": o.size - o.remaining,
+            "status": "open" if o.remaining == o.size else "partial",
+            "fills": [],
+        }
+        for o in book.orders.values()
+        if o.trader_id == trader_id
+    ]
+    if open_orders:
+        emit("open_orders", open_orders)
+
+    print(f"[connect] {names[trader_id]} ({trader_id[:8]})")
 
 
 @socketio.on("disconnect")
 def on_disconnect():
     sid = request.sid
-    name = names.pop(sid, sid)
-    print(f"[disconnect] {name}")
+    trader_id = sid_to_trader.pop(sid, sid)
+    trader_to_sid.pop(trader_id, None)
+    print(f"[disconnect] {names.get(trader_id, trader_id)}")
 
 
 @socketio.on("submit_order")
 def on_submit(data):
     sid = request.sid
+    trader_id = sid_to_trader.get(sid, sid)
 
     side = data.get("side")
     if side not in ("buy", "sell"):
@@ -141,11 +175,10 @@ def on_submit(data):
         return
 
     with lock:
-        order, trades = book.submit(sid, side, price, size, post_residual=post_residual)
+        order, trades = book.submit(trader_id, side, price, size, post_residual=post_residual)
         apply_trades(trades)
         emit_book()
 
-        # Tell the submitter about their order and any fills it generated.
         socketio.emit("order_accepted", {
             "order_id": order.id,
             "side": order.side,
@@ -161,7 +194,6 @@ def on_submit(data):
             ],
         }, to=sid)
 
-        # Tell each passive resting-order owner that their order was hit.
         for t in trades:
             if t.aggressor == "buy":
                 passive_trader, passive_oid, passive_side = (
@@ -169,8 +201,9 @@ def on_submit(data):
             else:
                 passive_trader, passive_oid, passive_side = (
                     t.buy_trader, t.buy_order_id, "buy")
-            if passive_trader not in names:
-                continue  # MM or disconnected client
+            passive_sid = trader_to_sid.get(passive_trader)
+            if not passive_sid:
+                continue  # MM or disconnected
             resting = book.orders.get(passive_oid)
             socketio.emit("fill", {
                 "order_id": passive_oid,
@@ -180,24 +213,25 @@ def on_submit(data):
                 "side": passive_side,
                 "remaining": resting.remaining if resting else 0,
                 "ts": t.ts,
-            }, to=passive_trader)
+            }, to=passive_sid)
 
     if trades:
-        emit_all_positions()  # mark moved -> everyone's unrealized updated
+        emit_all_positions()
     else:
-        emit_position(sid)  # only this trader sees a change (resting order placed)
+        emit_position(trader_id)
 
 
 @socketio.on("cancel_order")
 def on_cancel(data):
     sid = request.sid
+    trader_id = sid_to_trader.get(sid, sid)
     try:
         order_id = int(data["order_id"])
     except (KeyError, TypeError, ValueError):
         emit("order_rejected", {"reason": "invalid order_id"})
         return
     with lock:
-        ok = book.cancel(order_id, sid)
+        ok = book.cancel(order_id, trader_id)
     if ok:
         socketio.emit("order_canceled", {"order_id": order_id}, to=sid)
         emit_book()

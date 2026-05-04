@@ -37,6 +37,11 @@ export default function App() {
     const onTradesHistory = (data) => setTrades(data.slice(-MAX_TRADES))
     const onPosition = (data) => setPosition(data)
 
+    const onOpenOrders = (orders) => {
+      const restored = Object.fromEntries(orders.map(o => [o.order_id, o]))
+      setMyOrders(prev => ({ ...restored, ...prev }))
+    }
+
     const onOrderAccepted = (data) => {
       setMyOrders(prev => ({
         ...prev,
@@ -75,6 +80,7 @@ export default function App() {
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('hello', onHello)
+    socket.on('open_orders', onOpenOrders)
     socket.on('book', onBook)
     socket.on('trade', onTrade)
     socket.on('trades_history', onTradesHistory)
@@ -88,6 +94,7 @@ export default function App() {
       socket.off('connect', onConnect)
       socket.off('disconnect', onDisconnect)
       socket.off('hello', onHello)
+      socket.off('open_orders', onOpenOrders)
       socket.off('book', onBook)
       socket.off('trade', onTrade)
       socket.off('trades_history', onTradesHistory)

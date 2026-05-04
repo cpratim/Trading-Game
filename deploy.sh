@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BACKEND_PORT=${1:-5002}
-FRONTEND_PORT=${2:-5173}
 SERVE=0
-
-# --serve flag: build frontend into Flask, one port + one ngrok tunnel
+POSITIONAL=()
 for arg in "$@"; do
-  if [ "$arg" = "--serve" ]; then SERVE=1; fi
+  if [ "$arg" = "--serve" ]; then SERVE=1; else POSITIONAL+=("$arg"); fi
 done
+
+BACKEND_PORT=${POSITIONAL[0]:-5002}
+FRONTEND_PORT=${POSITIONAL[1]:-5173}
 
 OFFSET=$(( BACKEND_PORT - 5000 ))
 NGROK_B_API=$(( 4040 + OFFSET * 2 ))

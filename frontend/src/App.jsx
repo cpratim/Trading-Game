@@ -18,12 +18,21 @@ export default function App() {
   const [position, setPosition] = useState({ qty: 0, avg_price: 0, realized: 0, unrealized: 0 })
   const [prefill, setPrefill] = useState(null)
   const [qty, setQty] = useState(1)
+  const [midHistory, setMidHistory] = useState([])
 
   useEffect(() => {
     const onConnect = () => setConnected(true)
     const onDisconnect = () => setConnected(false)
     const onHello = (data) => setTrader(data)
-    const onBook = (data) => setBook(data)
+    const onBook = (data) => {
+      setBook(data)
+      const bestBid = data.bids.length ? data.bids[0][0] : null
+      const bestAsk = data.asks.length ? data.asks[0][0] : null
+      if (bestBid != null && bestAsk != null) {
+        const mid = (bestBid + bestAsk) / 2
+        setMidHistory(prev => [...prev.slice(-299), { ts: Date.now() / 1000, mid }])
+      }
+    }
     const onTrade = (data) => setTrades(prev => [...prev.slice(-(MAX_TRADES - 1)), data])
     const onTradesHistory = (data) => setTrades(data.slice(-MAX_TRADES))
     const onPosition = (data) => setPosition(data)
@@ -148,7 +157,7 @@ export default function App() {
           <PanelGroup direction="vertical">
             <Panel defaultSize={65} minSize={25}>
               <div className="chart-panel">
-                <PriceChart trades={trades} />
+                <PriceChart trades={trades} midHistory={midHistory} />
               </div>
             </Panel>
             <PanelResizeHandle className="resize-handle-h" />

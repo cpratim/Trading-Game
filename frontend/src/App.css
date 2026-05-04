@@ -131,6 +131,20 @@ body {
 
 .chart-wrap { height: 100%; }
 
+.chart-meta { color: #444455; font-size: 10px; text-transform: none; letter-spacing: 0; }
+.chart-meta strong { color: #ffffff; }
+
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80%;
+  color: #333344;
+  font-size: 12px;
+  text-align: center;
+  padding: 20px;
+}
+
 /* ── Order Entry ──────────────────────────────────────────── */
 
 .oe-wrap {

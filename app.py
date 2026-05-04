@@ -22,6 +22,7 @@ Outbound events:
   order_canceled  {order_id}                                          (private, to canceler)
   order_rejected  {reason, order_id?}                                 (private)
 """
+import os
 import threading
 
 from flask import Flask, request
@@ -261,8 +262,9 @@ def main():
         refresh_interval=MM_REFRESH_S,
     )
     mm.start()
-    print("Trading game backend listening on http://0.0.0.0:5002")
-    socketio.run(app, host="0.0.0.0", port=5002, debug=False,
+    port = int(os.environ.get("PORT", 5002))
+    print(f"Trading game backend listening on http://0.0.0.0:{port}")
+    socketio.run(app, host="0.0.0.0", port=port, debug=False,
                  allow_unsafe_werkzeug=True)
 
 

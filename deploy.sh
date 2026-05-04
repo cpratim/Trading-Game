@@ -33,6 +33,10 @@ else
 fi
 echo "------------------------------------------------------------"
 
+echo "[0] Installing Python dependencies..."
+cd "$ROOT"
+pip install -r requirements.txt -q
+
 # ── Single-server mode (--serve) ─────────────────────────────────────────────
 if [ "$SERVE" = "1" ]; then
 

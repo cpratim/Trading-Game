@@ -43,7 +43,7 @@ if [ "$SERVE" = "1" ]; then
   # 1. Build frontend with backend URL = same origin (relative)
   echo "[1/3] Building frontend..."
   cd "$ROOT/frontend"
-  # In single-server mode the socket connects to the same host, so no VITE_BACKEND_URL needed
+  npm install -q
   VITE_BACKEND_URL="" npx vite build >> "/tmp/trading_build_${BACKEND_PORT}.log" 2>&1
   echo "      built -> frontend/dist/"
 
@@ -112,6 +112,7 @@ echo "       backend  -> $BACKEND_URL"
 # 3. Frontend
 echo "[3/5] Starting frontend on port $FRONTEND_PORT..."
 cd "$ROOT/frontend"
+npm install -q
 VITE_BACKEND_URL="$BACKEND_URL" npx vite --port "$FRONTEND_PORT" \
   >> "/tmp/trading_frontend_${FRONTEND_PORT}.log" 2>&1 &
 FRONTEND_PID=$!

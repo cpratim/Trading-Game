@@ -3,8 +3,13 @@ set -euo pipefail
 
 BACKEND_PORT=${1:-5002}
 FRONTEND_PORT=${2:-5173}
+SERVE=0
 
-# Unique ngrok API ports per deployment (offset by backend port)
+# --serve flag: build frontend into Flask, one port + one ngrok tunnel
+for arg in "$@"; do
+  if [ "$arg" = "--serve" ]; then SERVE=1; fi
+done
+
 OFFSET=$(( BACKEND_PORT - 5000 ))
 NGROK_B_API=$(( 4040 + OFFSET * 2 ))
 NGROK_F_API=$(( 4041 + OFFSET * 2 ))
@@ -12,7 +17,6 @@ NGROK_F_API=$(( 4041 + OFFSET * 2 ))
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PIDS_FILE="/tmp/trading_pids_${BACKEND_PORT}"
 
-# Wait for ngrok tunnel URL on the given API port
 get_ngrok_url() {
   local api=$1
   for i in $(seq 1 15); do
@@ -24,19 +28,69 @@ d = json.load(sys.stdin)
 hits = [t['public_url'] for t in d.get('tunnels', []) if t['proto'] == 'https']
 print(hits[0] if hits else '')
 " 2>/dev/null || true)
-    if [ -n "$url" ]; then
-      echo "$url"
-      return 0
-    fi
+    if [ -n "$url" ]; then echo "$url"; return 0; fi
     sleep 1
   done
-  echo ""
-  return 1
+  echo ""; return 1
 }
 
 echo ""
-echo "Deploying book  backend=$BACKEND_PORT  frontend=$FRONTEND_PORT"
+if [ "$SERVE" = "1" ]; then
+  echo "Deploying book (single server)  port=$BACKEND_PORT"
+else
+  echo "Deploying book (dev)  backend=$BACKEND_PORT  frontend=$FRONTEND_PORT"
+fi
 echo "------------------------------------------------------------"
+
+# ── Single-server mode (--serve) ─────────────────────────────────────────────
+if [ "$SERVE" = "1" ]; then
+
+  # 1. Build frontend with backend URL = same origin (relative)
+  echo "[1/3] Building frontend..."
+  cd "$ROOT/frontend"
+  # In single-server mode the socket connects to the same host, so no VITE_BACKEND_URL needed
+  VITE_BACKEND_URL="" npx vite build >> "/tmp/trading_build_${BACKEND_PORT}.log" 2>&1
+  echo "      built -> frontend/dist/"
+
+  # 2. Start Flask serving frontend + API
+  echo "[2/3] Starting server on port $BACKEND_PORT..."
+  cd "$ROOT"
+  PORT=$BACKEND_PORT SERVE_FRONTEND=1 python app.py \
+    >> "/tmp/trading_backend_${BACKEND_PORT}.log" 2>&1 &
+  BACKEND_PID=$!
+  sleep 2
+
+  # 3. Ngrok
+  echo "[3/3] Tunnelling..."
+  ngrok http "$BACKEND_PORT" \
+    --api-port "$NGROK_B_API" \
+    --log stdout \
+    >> "/tmp/trading_ngrok_b_${BACKEND_PORT}.log" 2>&1 &
+  NGROK_B_PID=$!
+  sleep 3
+
+  URL=$(get_ngrok_url "$NGROK_B_API")
+  if [ -z "$URL" ]; then
+    echo "ERROR: could not get ngrok URL. Check /tmp/trading_ngrok_b_${BACKEND_PORT}.log"
+    kill "$BACKEND_PID" "$NGROK_B_PID" 2>/dev/null || true
+    exit 1
+  fi
+
+  echo "$BACKEND_PID $NGROK_B_PID" > "$PIDS_FILE"
+
+  echo ""
+  echo "============================================================"
+  echo "  Book ready!"
+  echo "  URL: $URL"
+  echo "============================================================"
+  echo "  Logs:"
+  echo "    server  /tmp/trading_backend_${BACKEND_PORT}.log"
+  echo "  Stop: ./stop.sh $BACKEND_PORT"
+  echo ""
+  exit 0
+fi
+
+# ── Dev mode (separate Vite + Flask) ─────────────────────────────────────────
 
 # 1. Backend
 echo "[1/5] Starting backend on port $BACKEND_PORT..."
@@ -62,7 +116,7 @@ if [ -z "$BACKEND_URL" ]; then
 fi
 echo "       backend  -> $BACKEND_URL"
 
-# 3. Frontend (inject backend URL inline so multiple books don't clobber .env)
+# 3. Frontend
 echo "[3/5] Starting frontend on port $FRONTEND_PORT..."
 cd "$ROOT/frontend"
 VITE_BACKEND_URL="$BACKEND_URL" npx vite --port "$FRONTEND_PORT" \
@@ -87,7 +141,6 @@ if [ -z "$FRONTEND_URL" ]; then
 fi
 echo "       frontend -> $FRONTEND_URL"
 
-# 5. Save PIDs
 echo "$BACKEND_PID $NGROK_B_PID $FRONTEND_PID $NGROK_F_PID" > "$PIDS_FILE"
 
 echo ""

@@ -25,7 +25,7 @@ Outbound events:
 import os
 import threading
 
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 from flask_socketio import SocketIO, emit
 
 from orderbook import OrderBook, Position
@@ -40,9 +40,21 @@ MM_SIZE = 20
 MM_REFRESH_S = 0.5
 
 # --- app + state ----------------------------------------------------------
-app = Flask(__name__)
+SERVE_FRONTEND = os.environ.get("SERVE_FRONTEND", "0") == "1"
+DIST_DIR = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+
+app = Flask(__name__, static_folder=DIST_DIR if SERVE_FRONTEND else None)
 app.config["SECRET_KEY"] = "demo"
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+if SERVE_FRONTEND:
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_frontend(path):
+        file_path = os.path.join(DIST_DIR, path)
+        if path and os.path.exists(file_path):
+            return send_from_directory(DIST_DIR, path)
+        return send_from_directory(DIST_DIR, "index.html")
 
 book = OrderBook()
 positions: dict[str, Position] = {MM_TRADER_ID: Position()}

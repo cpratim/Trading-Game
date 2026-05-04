@@ -63,8 +63,7 @@ if [ "$SERVE" = "1" ]; then
   # 3. Ngrok
   echo "[3/3] Tunnelling..."
   ngrok http "$BACKEND_PORT" \
-    --api-port "$NGROK_B_API" \
-    --log stdout \
+    --web-addr "localhost:$NGROK_B_API" \
     >> "/tmp/trading_ngrok_b_${BACKEND_PORT}.log" 2>&1 &
   NGROK_B_PID=$!
   sleep 3
@@ -102,8 +101,7 @@ sleep 2
 # 2. Ngrok backend
 echo "[2/5] Tunnelling backend..."
 ngrok http "$BACKEND_PORT" \
-  --api-port "$NGROK_B_API" \
-  --log stdout \
+  --web-addr "localhost:$NGROK_B_API" \
   >> "/tmp/trading_ngrok_b_${BACKEND_PORT}.log" 2>&1 &
 NGROK_B_PID=$!
 sleep 3
@@ -127,8 +125,7 @@ sleep 4
 # 4. Ngrok frontend
 echo "[4/5] Tunnelling frontend..."
 ngrok http "$FRONTEND_PORT" \
-  --api-port "$NGROK_F_API" \
-  --log stdout \
+  --web-addr "localhost:$NGROK_F_API" \
   >> "/tmp/trading_ngrok_f_${FRONTEND_PORT}.log" 2>&1 &
 NGROK_F_PID=$!
 sleep 3

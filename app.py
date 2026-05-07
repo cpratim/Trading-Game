@@ -278,6 +278,48 @@ def admin_resume():
     return {"ok": True}
 
 
+@app.route("/admin/settle", methods=["POST"])
+def admin_settle():
+    global paused
+    paused = True
+    data = request.get_json(force=True)
+    try:
+        price = float(data["price"])
+    except (KeyError, TypeError, ValueError):
+        return {"ok": False, "error": "missing or invalid price"}, 400
+
+    with lock:
+        # Cancel every resting order
+        for oid in list(book.orders.keys()):
+            o = book.orders.get(oid)
+            if o:
+                book.cancel(oid, o.trader_id)
+
+        # Close every trader's position at the settlement price
+        for trader_id, pos in positions.items():
+            if trader_id == MM_TRADER_ID or pos.qty == 0:
+                continue
+            side = "sell" if pos.qty > 0 else "buy"
+            pos.apply_trade(side, price, abs(pos.qty))
+
+    scores = {
+        trader_id: {
+            "name": names.get(trader_id, trader_id[:8]),
+            "pnl": round(pos.realized, 4),
+        }
+        for trader_id, pos in positions.items()
+        if trader_id != MM_TRADER_ID
+    }
+    scores_sorted = sorted(scores.values(), key=lambda s: s["pnl"], reverse=True)
+
+    emit_book()
+    emit_all_positions()
+    mm.pause()
+    socketio.emit("game_state", {"paused": True})
+    socketio.emit("settled", {"price": price, "scores": scores_sorted})
+    return {"ok": True, "price": price, "scores": scores_sorted}
+
+
 @app.route("/admin/reset", methods=["POST"])
 def admin_reset():
     global paused

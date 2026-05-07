@@ -62,6 +62,8 @@ names: dict[str, str] = {}          # trader_id -> display name
 sid_to_trader: dict[str, str] = {}  # socket sid -> persistent trader_id
 trader_to_sid: dict[str, str] = {}  # persistent trader_id -> current socket sid
 lock = threading.Lock()
+paused = False
+mm: "MarketMaker | None" = None
 
 
 # --- helpers --------------------------------------------------------------
@@ -156,6 +158,10 @@ def on_disconnect():
 
 @socketio.on("submit_order")
 def on_submit(data):
+    if paused:
+        emit("order_rejected", {"reason": "game is paused"})
+        return
+
     sid = request.sid
     trader_id = sid_to_trader.get(sid, sid)
 
@@ -252,6 +258,44 @@ def on_cancel(data):
         emit("order_rejected", {"reason": "cancel failed", "order_id": order_id})
 
 
+# --- admin endpoints ------------------------------------------------------
+@app.route("/admin/pause", methods=["POST"])
+def admin_pause():
+    global paused
+    paused = True
+    mm.pause()
+    emit_book()
+    socketio.emit("game_state", {"paused": True})
+    return {"ok": True}
+
+
+@app.route("/admin/resume", methods=["POST"])
+def admin_resume():
+    global paused
+    paused = False
+    mm.resume()
+    socketio.emit("game_state", {"paused": False})
+    return {"ok": True}
+
+
+@app.route("/admin/reset", methods=["POST"])
+def admin_reset():
+    global paused
+    paused = False
+    with lock:
+        book.reset()
+        positions.clear()
+        positions[MM_TRADER_ID] = Position()
+        mm.mid = INITIAL_MID
+        mm._paused.clear()
+        mm._seed()
+    emit_book()
+    emit_all_positions()
+    socketio.emit("trades_history", [])
+    socketio.emit("game_state", {"paused": False})
+    return {"ok": True}
+
+
 # --- mm callbacks ---------------------------------------------------------
 def on_mm_trades(trades):
     if not trades:
@@ -262,6 +306,7 @@ def on_mm_trades(trades):
 
 # --- entrypoint -----------------------------------------------------------
 def main():
+    global mm
     mm = MarketMaker(
         book, lock,
         on_book_change=emit_book,

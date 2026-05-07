@@ -147,6 +147,12 @@ class OrderBook:
         self.orders.pop(order_id, None)
         return True
 
+    def reset(self):
+        self.bids.clear()
+        self.asks.clear()
+        self.orders.clear()
+        self.trades.clear()
+
     def snapshot(self, depth: int = 10) -> dict:
         bids = sorted((p for p, q in self.bids.items() if q), reverse=True)[:depth]
         asks = sorted(p for p, q in self.asks.items() if q)[:depth]

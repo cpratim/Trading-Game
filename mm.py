@@ -33,6 +33,7 @@ class MarketMaker:
         self.size = size_per_level
         self.interval = refresh_interval
         self._stop = threading.Event()
+        self._paused = threading.Event()
         self._thread = None
 
     @staticmethod
@@ -50,6 +51,20 @@ class MarketMaker:
     def stop(self):
         self._stop.set()
 
+    def pause(self):
+        self._paused.set()
+        with self.lock:
+            for oid in list(self.book.orders.keys()):
+                o = self.book.orders.get(oid)
+                if o and o.trader_id == self.trader_id:
+                    self.book.cancel(oid, self.trader_id)
+
+    def resume(self):
+        self._paused.clear()
+        with self.lock:
+            self._seed()
+        self.on_book_change()
+
     def _seed(self):
         for i in range(1, self.levels + 1):
             self.book.submit(self.trader_id, "buy",
@@ -60,6 +75,8 @@ class MarketMaker:
     def _run(self):
         while not self._stop.is_set():
             time.sleep(self.interval)
+            if self._paused.is_set():
+                continue
             trades = []
             with self.lock:
                 self.mid = self._r(self.mid + random.choice([-self.tick, 0.0, self.tick]))

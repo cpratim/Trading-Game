@@ -125,9 +125,20 @@ export default function App() {
     socket.emit('submit_order', { side, type: 'limit', price, size })
   }, [])
 
+  const handleMarket = useCallback((side, size) => {
+    socket.emit('submit_order', { side, type: 'market', size })
+  }, [])
+
   const cancelOrder = useCallback((orderId) => {
     socket.emit('cancel_order', { order_id: orderId })
   }, [])
+
+  const cancelAll = useCallback(() => {
+    Object.values(myOrders).forEach(o => {
+      if (o.status === 'open' || o.status === 'partial')
+        socket.emit('cancel_order', { order_id: o.order_id })
+    })
+  }, [myOrders])
 
   const dismissOrder = useCallback((orderId) => {
     setMyOrders(prev => {
@@ -228,7 +239,7 @@ export default function App() {
             <PanelResizeHandle className="resize-handle-h" />
             <Panel defaultSize={35} minSize={15}>
               <div className="orders-panel">
-                <MyOrders orders={myOrders} onCancel={cancelOrder} onDismiss={dismissOrder} />
+                <MyOrders orders={myOrders} onCancel={cancelOrder} onDismiss={dismissOrder} onCancelAll={cancelAll} />
               </div>
             </Panel>
           </PanelGroup>
@@ -236,7 +247,7 @@ export default function App() {
         <PanelResizeHandle className="resize-handle-v" />
         <Panel defaultSize={25} minSize={18}>
           <div className="ladder-panel">
-            <OrderEntry prefill={prefill} qty={qty} onQtyChange={setQty} onSubmit={handleOrderSubmit} />
+            <OrderEntry prefill={prefill} qty={qty} onQtyChange={setQty} onSubmit={handleOrderSubmit} onMarket={handleMarket} />
             <OrderLadder book={book} myBidMap={myBidMap} myAskMap={myAskMap} onSelect={handleLadderSelect} />
           </div>
         </Panel>

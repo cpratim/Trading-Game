@@ -1,13 +1,19 @@
 const STATUS_RANK = { open: 0, partial: 1, filled: 2, cancelled: 3 }
 
-export default function MyOrders({ orders, onCancel, onDismiss }) {
+export default function MyOrders({ orders, onCancel, onDismiss, onCancelAll }) {
   const list = Object.values(orders).sort(
     (a, b) => (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9)
   )
+  const hasOpen = list.some(o => o.status === 'open' || o.status === 'partial')
 
   return (
     <div className="my-orders">
-      <div className="panel-title">My Orders</div>
+      <div className="panel-title">
+        My Orders
+        {hasOpen && (
+          <button className="cancel-all-btn" onClick={onCancelAll}>cancel all</button>
+        )}
+      </div>
       {list.length === 0 ? (
         <div className="orders-empty">no orders yet — click the ladder to place</div>
       ) : (

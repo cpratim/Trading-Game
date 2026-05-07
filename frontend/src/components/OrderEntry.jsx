@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 
 const SIZE_PRESETS = [1, 5, 10, 20]
 
-export default function OrderEntry({ prefill, qty, onQtyChange, onSubmit }) {
+export default function OrderEntry({ prefill, qty, onQtyChange, onSubmit, onMarket }) {
   const [side, setSide] = useState('buy')
   const [price, setPrice] = useState('')
 
@@ -76,6 +76,11 @@ export default function OrderEntry({ prefill, qty, onQtyChange, onSubmit }) {
       >
         {side === 'buy' ? 'Place Bid' : 'Place Ask'}
       </button>
+
+      <div className="oe-market">
+        <button className="oe-mkt buy" onClick={() => onMarket('buy',  qty)}>MKT BUY</button>
+        <button className="oe-mkt sell" onClick={() => onMarket('sell', qty)}>MKT SELL</button>
+      </div>
     </div>
   )
 }

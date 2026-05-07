@@ -2,9 +2,17 @@
 set -euo pipefail
 
 SERVE=0
+MID=""
 POSITIONAL=()
-for arg in "$@"; do
-  if [ "$arg" = "--serve" ]; then SERVE=1; else POSITIONAL+=("$arg"); fi
+args=("$@")
+i=0
+while [ $i -lt ${#args[@]} ]; do
+  case "${args[$i]}" in
+    --serve) SERVE=1 ;;
+    --mid)   i=$(( i + 1 )); MID="${args[$i]}" ;;
+    *)       POSITIONAL+=("${args[$i]}") ;;
+  esac
+  i=$(( i + 1 ))
 done
 
 BACKEND_PORT=${POSITIONAL[0]:-5002}
@@ -51,7 +59,7 @@ if [ "$SERVE" = "1" ]; then
   # 2. Start Flask serving frontend + API
   echo "[2/3] Starting server on port $BACKEND_PORT..."
   cd "$ROOT"
-  PORT=$BACKEND_PORT SERVE_FRONTEND=1 "$PYTHON" app.py \
+  PORT=$BACKEND_PORT SERVE_FRONTEND=1 ${MID:+INITIAL_MID=$MID} "$PYTHON" app.py \
     >> "/tmp/trading_backend_${BACKEND_PORT}.log" 2>&1 &
   BACKEND_PID=$!
   sleep 2
@@ -90,7 +98,7 @@ fi
 # 1. Backend
 echo "[1/5] Starting backend on port $BACKEND_PORT..."
 cd "$ROOT"
-PORT=$BACKEND_PORT "$PYTHON" app.py >> "/tmp/trading_backend_${BACKEND_PORT}.log" 2>&1 &
+PORT=$BACKEND_PORT ${MID:+INITIAL_MID=$MID} "$PYTHON" app.py >> "/tmp/trading_backend_${BACKEND_PORT}.log" 2>&1 &
 BACKEND_PID=$!
 sleep 2
 

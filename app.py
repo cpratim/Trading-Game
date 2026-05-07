@@ -33,10 +33,10 @@ from mm import MarketMaker
 
 # --- config ---------------------------------------------------------------
 MM_TRADER_ID = "__mm__"
-TICK = 1.0
-INITIAL_MID = 100.0
-LEVELS = 10
-MM_SIZE = 20
+TICK = 5.0
+INITIAL_MID = float(os.environ.get("INITIAL_MID", 100.0))
+LEVELS = 2
+MM_SIZE = 10
 MM_REFRESH_S = 0.5
 
 # --- app + state ----------------------------------------------------------
@@ -108,6 +108,8 @@ def emit_all_positions():
 
 
 def apply_trades(trades):
+    if trades and mm:
+        mm.record_fill(trades)
     for t in trades:
         positions.setdefault(t.buy_trader, Position()).apply_trade("buy", t.price, t.size)
         positions.setdefault(t.sell_trader, Position()).apply_trade("sell", t.price, t.size)

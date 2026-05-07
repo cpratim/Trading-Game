@@ -1,12 +1,9 @@
-"""Synthetic market maker. Posts liquidity around a drifting mid price.
+"""Synthetic market maker.
 
-The MM:
-- Seeds N levels each side at startup
-- Every refresh tick, drifts mid by +/- 1 tick (random walk) and:
-  - cancels its own orders that are outside the new target band
-  - tops up size at each target level (without crossing)
+Posts N levels each side around a mid price. When one side gets hit,
+the effective mid skews in that direction (inventory-based backoff).
+Skew decays back to zero over time so the MM recenters.
 """
-import random
 import threading
 import time
 from typing import Callable
@@ -18,10 +15,12 @@ class MarketMaker:
                  on_trades: Callable[[list], None],
                  trader_id: str = "__mm__",
                  initial_mid: float = 100.0,
-                 tick: float = 1.0,
-                 levels: int = 10,
-                 size_per_level: int = 20,
-                 refresh_interval: float = 0.5):
+                 tick: float = 5.0,
+                 levels: int = 2,
+                 size_per_level: int = 10,
+                 refresh_interval: float = 0.5,
+                 skew_per_unit: float = 0.5,
+                 skew_decay: float = 0.95):
         self.book = book
         self.lock = lock
         self.on_book_change = on_book_change
@@ -32,14 +31,29 @@ class MarketMaker:
         self.levels = levels
         self.size = size_per_level
         self.interval = refresh_interval
+        self.skew_per_unit = skew_per_unit  # price shift per unit filled
+        self.skew_decay = skew_decay        # skew multiplier each refresh (toward 0)
+        self.skew = 0.0
         self._stop = threading.Event()
         self._paused = threading.Event()
         self._thread = None
 
     @staticmethod
     def _r(x: float) -> float:
-        # Round to kill float drift from repeated additions.
         return round(x, 6)
+
+    def _eff_mid(self) -> float:
+        return self._r(self.mid + self.skew)
+
+    def record_fill(self, trades):
+        """Called by app whenever MM orders are filled. Skews the mid."""
+        for t in trades:
+            if t.sell_trader == self.trader_id:
+                # MM's ask got hit → getting shorter → skew up
+                self.skew += t.size * self.skew_per_unit
+            elif t.buy_trader == self.trader_id:
+                # MM's bid got hit → getting longer → skew down
+                self.skew -= t.size * self.skew_per_unit
 
     def start(self):
         with self.lock:
@@ -66,11 +80,10 @@ class MarketMaker:
         self.on_book_change()
 
     def _seed(self):
+        eff = self._eff_mid()
         for i in range(1, self.levels + 1):
-            self.book.submit(self.trader_id, "buy",
-                             self._r(self.mid - i * self.tick), self.size)
-            self.book.submit(self.trader_id, "sell",
-                             self._r(self.mid + i * self.tick), self.size)
+            self.book.submit(self.trader_id, "buy",  self._r(eff - i * self.tick), self.size)
+            self.book.submit(self.trader_id, "sell", self._r(eff + i * self.tick), self.size)
 
     def _run(self):
         while not self._stop.is_set():
@@ -79,17 +92,18 @@ class MarketMaker:
                 continue
             trades = []
             with self.lock:
-                self.mid = self._r(self.mid + random.choice([-self.tick, 0.0, self.tick]))
+                self.skew = self._r(self.skew * self.skew_decay)
                 trades = self._refresh()
             if trades:
                 self.on_trades(trades)
             self.on_book_change()
 
     def _refresh(self) -> list:
-        target_bids = {self._r(self.mid - i * self.tick) for i in range(1, self.levels + 1)}
-        target_asks = {self._r(self.mid + i * self.tick) for i in range(1, self.levels + 1)}
+        eff = self._eff_mid()
+        target_bids = {self._r(eff - i * self.tick) for i in range(1, self.levels + 1)}
+        target_asks = {self._r(eff + i * self.tick) for i in range(1, self.levels + 1)}
 
-        # Cancel my orders that are out-of-band.
+        # Cancel MM orders outside the new target band
         for oid, o in list(self.book.orders.items()):
             if o.trader_id != self.trader_id:
                 continue
@@ -98,23 +112,19 @@ class MarketMaker:
                 self.book.cancel(oid, self.trader_id)
 
         all_trades = []
-        # Top up bids.
         for p in target_bids:
             best_ask = self.book.best_ask()
             if best_ask is not None and p >= best_ask:
-                continue  # would cross; skip
-            current = sum(o.remaining for o in self.book.bids[p]
-                          if o.trader_id == self.trader_id)
+                continue
+            current = sum(o.remaining for o in self.book.bids[p] if o.trader_id == self.trader_id)
             if current < self.size:
                 _, ts = self.book.submit(self.trader_id, "buy", p, self.size - current)
                 all_trades.extend(ts)
-        # Top up asks.
         for p in target_asks:
             best_bid = self.book.best_bid()
             if best_bid is not None and p <= best_bid:
                 continue
-            current = sum(o.remaining for o in self.book.asks[p]
-                          if o.trader_id == self.trader_id)
+            current = sum(o.remaining for o in self.book.asks[p] if o.trader_id == self.trader_id)
             if current < self.size:
                 _, ts = self.book.submit(self.trader_id, "sell", p, self.size - current)
                 all_trades.extend(ts)

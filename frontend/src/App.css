@@ -379,6 +379,20 @@ body {
 }
 .dismiss-btn:hover { color: #ffffff; }
 
+.liquidate-btn {
+  background: transparent;
+  border: 1px solid #fbbf2466;
+  color: #fbbf24;
+  padding: 2px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  letter-spacing: 0.5px;
+  margin-left: 8px;
+}
+.liquidate-btn:hover { background: rgba(251, 191, 36, 0.15); border-color: #fbbf24; }
+
 /* ── Paused banner ────────────────────────────────────────── */
 
 .paused-banner {

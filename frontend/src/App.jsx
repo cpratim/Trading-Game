@@ -137,6 +137,13 @@ export default function App() {
     })
   }, [])
 
+  const liquidate = useCallback(() => {
+    if (position.qty === 0) return
+    const side = position.qty > 0 ? 'sell' : 'buy'
+    const size = Math.abs(position.qty)
+    socket.emit('submit_order', { side, type: 'market', size })
+  }, [position.qty])
+
   // Compute my resting orders per price level for ladder overlay
   const myBidMap = {}
   const myAskMap = {}
@@ -202,6 +209,11 @@ export default function App() {
           <span className={`pos-item pnl ${position.pnl >= 0 ? 'pos' : 'neg'}`}>
             {position.pnl >= 0 ? '+' : ''}{position.pnl.toFixed(2)}
           </span>
+          {position.qty !== 0 && (
+            <button className="liquidate-btn" onClick={liquidate}>
+              liquidate
+            </button>
+          )}
         </div>
       </header>
 

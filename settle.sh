@@ -14,8 +14,13 @@ if not d.get('ok'):
     sys.exit(1)
 print(f'Settled at {d[\"price\"]}')
 print()
-print(f'  {\"Rank\":<6} {\"Name\":<20} {\"PnL\":>10}')
-print(f'  {\"-\"*40}')
-for i, s in enumerate(d['scores'], 1):
-    print(f'  {i:<6} {s[\"name\"]:<20} {s[\"pnl\"]:>10.2f}')
+print(f'  {\"Rank\":<6} {\"Name\":<24} {\"PnL\":>10}')
+print(f'  {\"-\"*44}')
+rank = 1
+for s in d['scores']:
+    if s.get('is_mm'):
+        print(f'  {\"--\":<6} {s[\"name\"]:<24} {s[\"pnl\"]:>10.2f}')
+    else:
+        print(f'  {rank:<6} {s[\"name\"]:<24} {s[\"pnl\"]:>10.2f}')
+        rank += 1
 "

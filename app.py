@@ -307,22 +307,23 @@ def admin_settle():
             if o:
                 book.cancel(oid, o.trader_id)
 
-        # Close every trader's position at the settlement price
+        # Close every position (traders + MM) at the settlement price
         for trader_id, pos in positions.items():
-            if trader_id == MM_TRADER_ID or pos.qty == 0:
+            if pos.qty == 0:
                 continue
             side = "sell" if pos.qty > 0 else "buy"
             pos.apply_trade(side, price, abs(pos.qty))
 
-    scores = {
-        trader_id: {
-            "name": names.get(trader_id, trader_id[:8]),
-            "pnl": round(pos.cash - STARTING_CASH, 2),
-        }
-        for trader_id, pos in positions.items()
-        if trader_id != MM_TRADER_ID
-    }
-    scores_sorted = sorted(scores.values(), key=lambda s: s["pnl"], reverse=True)
+    mm_pos = positions.get(MM_TRADER_ID, Position())
+    mm_entry = {"name": "[ market maker ]", "pnl": round(mm_pos.cash - STARTING_CASH, 2), "is_mm": True}
+
+    scores = [
+        {"name": names.get(tid, tid[:8]), "pnl": round(pos.cash - STARTING_CASH, 2), "is_mm": False}
+        for tid, pos in positions.items()
+        if tid != MM_TRADER_ID
+    ]
+    scores_sorted = sorted(scores, key=lambda s: s["pnl"], reverse=True)
+    scores_sorted.append(mm_entry)
 
     emit_book()
     emit_all_positions()

@@ -28,7 +28,7 @@ import threading
 from flask import Flask, request, send_from_directory
 from flask_socketio import SocketIO, emit
 
-from orderbook import OrderBook, Position
+from orderbook import OrderBook, Position, STARTING_CASH, POSITION_LIMIT
 from mm import MarketMaker
 
 # --- config ---------------------------------------------------------------
@@ -67,12 +67,16 @@ mm: "MarketMaker | None" = None
 
 
 # --- helpers --------------------------------------------------------------
-def _last_price() -> float:
+def _mark_price() -> float:
+    bid, ask = book.best_bid(), book.best_ask()
+    if bid and ask:
+        return (bid + ask) / 2
     return book.trades[-1].price if book.trades else INITIAL_MID
 
 
 def emit_book():
     socketio.emit("book", book.snapshot(depth=LEVELS))
+    emit_all_positions()
 
 
 def emit_trade(t):
@@ -87,11 +91,13 @@ def emit_position(trader_id: str):
     if not sid:
         return
     pos = positions.get(trader_id, Position())
+    mark = _mark_price()
     socketio.emit("position", {
         "qty": pos.qty,
         "avg_price": round(pos.avg_price, 4),
-        "realized": round(pos.realized, 4),
-        "unrealized": round(pos.unrealized(_last_price()), 4),
+        "cash": round(pos.cash, 2),
+        "pnl": round(pos.pnl(mark), 2),
+        "mark": round(mark, 2),
     }, to=sid)
 
 
@@ -191,6 +197,12 @@ def on_submit(data):
         post_residual = True
     else:
         emit("order_rejected", {"reason": f"unknown order type {order_type!r}"})
+        return
+
+    pos = positions.get(trader_id, Position())
+    new_qty = pos.qty + (size if side == "buy" else -size)
+    if abs(new_qty) > POSITION_LIMIT:
+        emit("order_rejected", {"reason": f"position limit ±{POSITION_LIMIT} would be breached"})
         return
 
     with lock:
@@ -305,7 +317,7 @@ def admin_settle():
     scores = {
         trader_id: {
             "name": names.get(trader_id, trader_id[:8]),
-            "pnl": round(pos.realized, 4),
+            "pnl": round(pos.cash - STARTING_CASH, 2),
         }
         for trader_id, pos in positions.items()
         if trader_id != MM_TRADER_ID

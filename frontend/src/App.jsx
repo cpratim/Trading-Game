@@ -15,7 +15,7 @@ export default function App() {
   const [book, setBook] = useState({ bids: [], asks: [] })
   const [trades, setTrades] = useState([])
   const [myOrders, setMyOrders] = useState({})
-  const [position, setPosition] = useState({ qty: 0, avg_price: 0, realized: 0, unrealized: 0 })
+  const [position, setPosition] = useState({ qty: 0, avg_price: 0, cash: 0, pnl: 0, mark: 0 })
   const [prefill, setPrefill] = useState(null)
   const [qty, setQty] = useState(1)
   const [midHistory, setMidHistory] = useState([])
@@ -141,8 +141,6 @@ export default function App() {
     }
   })
 
-  const pnl = position.realized + position.unrealized
-
   return (
     <div className="app">
       {settlement && (
@@ -188,9 +186,13 @@ export default function App() {
           </span>
           <span className="pos-item label">avg</span>
           <span className="pos-item">{position.avg_price.toFixed(2)}</span>
+          <span className="pos-item label">mark</span>
+          <span className="pos-item">{position.mark.toFixed(2)}</span>
+          <span className="pos-item label">cash</span>
+          <span className={`pos-item ${position.cash >= 0 ? '' : 'neg'}`}>{position.cash.toFixed(2)}</span>
           <span className="pos-item label">pnl</span>
-          <span className={`pos-item pnl ${pnl >= 0 ? 'pos' : 'neg'}`}>
-            {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
+          <span className={`pos-item pnl ${position.pnl >= 0 ? 'pos' : 'neg'}`}>
+            {position.pnl >= 0 ? '+' : ''}{position.pnl.toFixed(2)}
           </span>
         </div>
       </header>

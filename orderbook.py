@@ -31,37 +31,43 @@ class Trade:
     sell_order_id: int
 
 
+STARTING_CASH = 0.0
+POSITION_LIMIT = 1000
+
+
 @dataclass
 class Position:
-    qty: int = 0  # signed: + long, - short
+    qty: int = 0          # signed: + long, - short
     avg_price: float = 0.0
     realized: float = 0.0
+    cash: float = STARTING_CASH
 
     def apply_trade(self, side: str, price: float, size: int) -> None:
+        # Cash flow
+        if side == "buy":
+            self.cash -= price * size
+        else:
+            self.cash += price * size
+
         signed = size if side == "buy" else -size
         new_qty = self.qty + signed
         if self.qty == 0:
             self.avg_price = price
         elif (self.qty > 0) == (signed > 0):
-            # same direction -> weighted average
             self.avg_price = (self.avg_price * self.qty + price * signed) / new_qty
         else:
-            # closing or flipping
             close = min(abs(signed), abs(self.qty))
             pnl = (price - self.avg_price) * close if self.qty > 0 \
                 else (self.avg_price - price) * close
             self.realized += pnl
             if (self.qty > 0 and new_qty < 0) or (self.qty < 0 and new_qty > 0):
-                self.avg_price = price  # flipped
+                self.avg_price = price
             elif new_qty == 0:
                 self.avg_price = 0.0
-            # else: partial close, avg_price unchanged
         self.qty = new_qty
 
-    def unrealized(self, mark: float) -> float:
-        if self.qty == 0:
-            return 0.0
-        return (mark - self.avg_price) * self.qty
+    def pnl(self, mark: float) -> float:
+        return self.cash + self.qty * mark - STARTING_CASH
 
 
 class OrderBook:

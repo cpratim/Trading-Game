@@ -64,6 +64,7 @@ trader_to_sid: dict[str, str] = {}  # persistent trader_id -> current socket sid
 lock = threading.Lock()
 paused = False
 mm: "MarketMaker | None" = None
+trader_orders: dict[str, dict[int, dict]] = {}  # trader_id -> {order_id -> order dict}
 
 
 # --- helpers --------------------------------------------------------------
@@ -132,24 +133,9 @@ def on_connect():
     ])
     emit_position(trader_id)
 
-    # Restore any resting orders that survived the reconnect
-    open_orders = [
-        {
-            "order_id": o.id,
-            "side": o.side,
-            "type": "limit",
-            "price": o.price,
-            "size": o.size,
-            "remaining": o.remaining,
-            "filled": o.size - o.remaining,
-            "status": "open" if o.remaining == o.size else "partial",
-            "fills": [],
-        }
-        for o in book.orders.values()
-        if o.trader_id == trader_id
-    ]
-    if open_orders:
-        emit("open_orders", open_orders)
+    history = list(trader_orders.get(trader_id, {}).values())
+    if history:
+        emit("open_orders", history)
 
     print(f"[connect] {names[trader_id]} ({trader_id[:8]})")
 
@@ -210,7 +196,7 @@ def on_submit(data):
         apply_trades(trades)
         emit_book()
 
-        socketio.emit("order_accepted", {
+        accepted = {
             "order_id": order.id,
             "side": order.side,
             "type": order_type,
@@ -223,7 +209,9 @@ def on_submit(data):
                 {"trade_id": t.id, "price": t.price, "size": t.size, "ts": t.ts}
                 for t in trades
             ],
-        }, to=sid)
+        }
+        trader_orders.setdefault(trader_id, {})[order.id] = accepted
+        socketio.emit("order_accepted", accepted, to=sid)
 
         for t in trades:
             if t.aggressor == "buy":
@@ -233,16 +221,23 @@ def on_submit(data):
                 passive_trader, passive_oid, passive_side = (
                     t.buy_trader, t.buy_order_id, "buy")
             passive_sid = trader_to_sid.get(passive_trader)
+            resting = book.orders.get(passive_oid)
+            remaining = resting.remaining if resting else 0
+            # Update persisted history for passive side
+            if passive_trader in trader_orders and passive_oid in trader_orders[passive_trader]:
+                rec = trader_orders[passive_trader][passive_oid]
+                rec["remaining"] = remaining
+                rec["filled"] = rec["size"] - remaining
+                rec["status"] = "filled" if remaining == 0 else "partial"
             if not passive_sid:
                 continue  # MM or disconnected
-            resting = book.orders.get(passive_oid)
             socketio.emit("fill", {
                 "order_id": passive_oid,
                 "trade_id": t.id,
                 "price": t.price,
                 "size": t.size,
                 "side": passive_side,
-                "remaining": resting.remaining if resting else 0,
+                "remaining": remaining,
                 "ts": t.ts,
             }, to=passive_sid)
 
@@ -264,6 +259,8 @@ def on_cancel(data):
     with lock:
         ok = book.cancel(order_id, trader_id)
     if ok:
+        if trader_id in trader_orders and order_id in trader_orders[trader_id]:
+            trader_orders[trader_id][order_id]["status"] = "cancelled"
         socketio.emit("order_canceled", {"order_id": order_id}, to=sid)
         emit_book()
     else:
@@ -337,6 +334,7 @@ def admin_settle():
 def admin_reset():
     global paused
     paused = False
+    trader_orders.clear()
     with lock:
         book.reset()
         positions.clear()

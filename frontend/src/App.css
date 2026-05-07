@@ -368,6 +368,17 @@ body {
 }
 .cancel-btn:hover { background: rgba(255, 107, 107, 0.15); border-color: #ff6b6b; }
 
+.dismiss-btn {
+  background: transparent;
+  border: none;
+  color: #555566;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+}
+.dismiss-btn:hover { color: #ffffff; }
+
 /* ── Paused banner ────────────────────────────────────────── */
 
 .paused-banner {

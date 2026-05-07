@@ -129,6 +129,14 @@ export default function App() {
     socket.emit('cancel_order', { order_id: orderId })
   }, [])
 
+  const dismissOrder = useCallback((orderId) => {
+    setMyOrders(prev => {
+      const next = { ...prev }
+      delete next[orderId]
+      return next
+    })
+  }, [])
+
   // Compute my resting orders per price level for ladder overlay
   const myBidMap = {}
   const myAskMap = {}
@@ -208,7 +216,7 @@ export default function App() {
             <PanelResizeHandle className="resize-handle-h" />
             <Panel defaultSize={35} minSize={15}>
               <div className="orders-panel">
-                <MyOrders orders={myOrders} onCancel={cancelOrder} />
+                <MyOrders orders={myOrders} onCancel={cancelOrder} onDismiss={dismissOrder} />
               </div>
             </Panel>
           </PanelGroup>

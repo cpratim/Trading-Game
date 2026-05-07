@@ -1,6 +1,6 @@
 const STATUS_RANK = { open: 0, partial: 1, filled: 2, cancelled: 3 }
 
-export default function MyOrders({ orders, onCancel }) {
+export default function MyOrders({ orders, onCancel, onDismiss }) {
   const list = Object.values(orders).sort(
     (a, b) => (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9)
   )
@@ -32,9 +32,10 @@ export default function MyOrders({ orders, onCancel }) {
                 <td className={`o-status ${order.status}`}>{order.status}</td>
                 <td>
                   {(order.status === 'open' || order.status === 'partial') && (
-                    <button className="cancel-btn" onClick={() => onCancel(order.order_id)}>
-                      cancel
-                    </button>
+                    <button className="cancel-btn" onClick={() => onCancel(order.order_id)}>cancel</button>
+                  )}
+                  {(order.status === 'filled' || order.status === 'cancelled') && (
+                    <button className="dismiss-btn" onClick={() => onDismiss(order.order_id)}>✕</button>
                   )}
                 </td>
               </tr>

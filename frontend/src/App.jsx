@@ -19,6 +19,8 @@ export default function App() {
   const [prefill, setPrefill] = useState(null)
   const [qty, setQty] = useState(1)
   const [midHistory, setMidHistory] = useState([])
+  const [paused, setPaused] = useState(false)
+  const [settlement, setSettlement] = useState(null)
 
   useEffect(() => {
     const onConnect = () => setConnected(true)
@@ -77,6 +79,9 @@ export default function App() {
       console.warn('[order_rejected]', data.reason, data)
     }
 
+    const onGameState = (data) => setPaused(data.paused)
+    const onSettled = (data) => setSettlement(data)
+
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('hello', onHello)
@@ -89,6 +94,8 @@ export default function App() {
     socket.on('fill', onFill)
     socket.on('order_canceled', onOrderCanceled)
     socket.on('order_rejected', onOrderRejected)
+    socket.on('game_state', onGameState)
+    socket.on('settled', onSettled)
 
     return () => {
       socket.off('connect', onConnect)
@@ -103,6 +110,8 @@ export default function App() {
       socket.off('fill', onFill)
       socket.off('order_canceled', onOrderCanceled)
       socket.off('order_rejected', onOrderRejected)
+      socket.off('game_state', onGameState)
+      socket.off('settled', onSettled)
     }
   }, [])
 
@@ -136,6 +145,33 @@ export default function App() {
 
   return (
     <div className="app">
+      {settlement && (
+        <div className="overlay">
+          <div className="overlay-box">
+            <div className="overlay-title">SETTLED</div>
+            <div className="overlay-price">Final price: <strong>{settlement.price.toFixed(2)}</strong></div>
+            <table className="overlay-table">
+              <thead>
+                <tr><th>Rank</th><th>Trader</th><th>PnL</th></tr>
+              </thead>
+              <tbody>
+                {settlement.scores.map((s, i) => (
+                  <tr key={s.name} className={s.name === trader?.name ? 'overlay-me' : ''}>
+                    <td>{i + 1}</td>
+                    <td>{s.name}</td>
+                    <td className={s.pnl >= 0 ? 'pos' : 'neg'}>
+                      {s.pnl >= 0 ? '+' : ''}{s.pnl.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {paused && !settlement && (
+        <div className="paused-banner">PAUSED</div>
+      )}
       <header className="header">
         <div className="header-left">
           <span className="app-title">Trading Game</span>

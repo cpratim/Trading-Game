@@ -367,3 +367,83 @@ body {
   letter-spacing: 0.5px;
 }
 .cancel-btn:hover { background: rgba(255, 107, 107, 0.15); border-color: #ff6b6b; }
+
+/* ── Paused banner ────────────────────────────────────────── */
+
+.paused-banner {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(251, 191, 36, 0.15);
+  border: 2px solid #fbbf24;
+  color: #fbbf24;
+  font-size: 28px;
+  font-weight: bold;
+  letter-spacing: 8px;
+  padding: 16px 48px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* ── Settlement overlay ───────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.overlay-box {
+  background: #0f0f20;
+  border: 1px solid #ffffff33;
+  border-radius: 8px;
+  padding: 32px 40px;
+  min-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.overlay-title {
+  font-size: 28px;
+  font-weight: bold;
+  letter-spacing: 8px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.overlay-price {
+  text-align: center;
+  color: #888899;
+  font-size: 13px;
+}
+.overlay-price strong { color: #ffffff; }
+
+.overlay-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.overlay-table th {
+  color: #888899;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-bottom: 1px solid #ffffff22;
+  text-align: left;
+}
+.overlay-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #ffffff0a;
+}
+.overlay-table .pos { color: #4ade80; font-weight: bold; }
+.overlay-table .neg { color: #f87171; font-weight: bold; }
+.overlay-me { background: rgba(147, 197, 253, 0.08); }
+.overlay-me td:nth-child(2)::after { content: ' ★'; color: #93c5fd; }
